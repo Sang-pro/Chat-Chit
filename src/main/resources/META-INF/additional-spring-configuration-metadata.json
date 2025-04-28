@@ -1,0 +1,67 @@
+{"properties": [
+  {
+    "name": "app.jwt.secret",
+    "type": "java.lang.String",
+    "description": "A description for 'app.jwt.secret'"
+  },
+  {
+    "name": "app.jwt.expirationMs",
+    "type": "java.lang.String",
+    "description": "A description for 'app.jwt.expirationMs'"
+  },
+  {
+    "name": "app.jwt.expirationMs",
+    "type": "java.lang.String",
+    "description": "A description for 'app.jwt.expirationMs'"
+  },
+  {
+    "name": "app.jwt.refreshExpirationMs",
+    "type": "java.lang.String",
+    "description": "A description for 'app.jwt.refreshExpirationMs'"
+  },
+  {
+    "name": "app.security.cors.allowed-origins",
+    "type": "java.lang.String",
+    "description": "A description for 'app.security.cors.allowed-origins'"
+  },
+  {
+    "name": "app.security.password-strength",
+    "type": "java.lang.String",
+    "description": "A description for 'app.security.password-strength'"
+  },
+  {
+    "name": "app.ollama.apiUrl",
+    "type": "java.lang.String",
+    "description": "A description for 'app.ollama.apiUrl'"
+  },
+  {
+    "name": "spring.webmvc.cors.allowed-headers",
+    "type": "java.lang.String",
+    "description": "A description for 'spring.webmvc.cors.allowed-headers'"
+  },
+  {
+    "name": "spring.webmvc.cors.allowed-methods",
+    "type": "java.lang.String",
+    "description": "A description for 'spring.webmvc.cors.allowed-methods'"
+  },
+  {
+    "name": "spring.webmvc.cors.allowed-origins",
+    "type": "java.lang.String",
+    "description": "A description for 'spring.webmvc.cors.allowed-origins'"
+  },
+  {
+    "name": "reactor.netty.native",
+    "type": "java.lang.String",
+    "description": "A description for 'reactor.netty.native'"
+  },
+  {
+    "name": "app.ollama.enableStreaming",
+    "type": "java.lang.String",
+    "description": "A description for 'app.ollama.enableStreaming'"
+  },
+  {
+    "name": "app.ollama.timeoutSeconds",
+    "type": "java.lang.String",
+    "description": "A description for 'app.ollama.timeoutSeconds'"
+  }
+]}
