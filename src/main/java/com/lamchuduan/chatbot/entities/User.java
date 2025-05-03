@@ -45,6 +45,9 @@ public class User {
     @Column(name = "last_name", length = 50)
     private String lastName;
 
+    @Column(name = "avatar_url", length = 1024)
+    private String avatarUrl;
+
     @Column(name = "phone_number", length = 15, unique = true)
     private String phoneNumber;
 
