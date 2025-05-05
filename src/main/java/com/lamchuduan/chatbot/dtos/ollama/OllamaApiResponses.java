@@ -13,7 +13,7 @@ import lombok.*;
 @NoArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class OllamaApiResponses {
-    private List<OllamaModelResponse> responses;
+    private List<OllamaModelResponse> models;
     private String status;
 
     private String modelfile;
