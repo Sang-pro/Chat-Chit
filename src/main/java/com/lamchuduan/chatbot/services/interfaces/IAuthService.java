@@ -9,10 +9,10 @@ import com.lamchuduan.chatbot.dtos.responses.MessageResponse;
 
 public interface IAuthService {
     JwtResponse authenticateUser(LoginRequest loginRequest);
-    JwtResponse refreshToken(RefreshTokenRequest refreshToken);
+    JwtResponse refreshToken(RefreshTokenRequest refreshTokenRequest);
 
     MessageResponse registerUser(RegisterRequest registerRequest);
-    MessageResponse logoutUser(LogoutRequest registerRequest);
+    MessageResponse logoutUser(LogoutRequest logoutRequest);
     MessageResponse revokeToken(String token, String reason);
 
     boolean existsByEmail(String email);
