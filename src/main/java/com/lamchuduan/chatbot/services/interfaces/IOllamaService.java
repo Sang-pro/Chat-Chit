@@ -1,0 +1,24 @@
+package com.lamchuduan.chatbot.services.interfaces;
+
+import java.util.List;
+import java.util.Map;
+import org.springframework.http.codec.ServerSentEvent;
+import com.lamchuduan.chatbot.dtos.ollama.OllamaCompletionResponse;
+import reactor.core.publisher.Flux;
+
+public interface IOllamaService {
+    default OllamaCompletionResponse genderateCompletion(String model, List<Map<String, String>> messages) {
+        return genderateCompletion(model, messages, null);
+    }
+
+    OllamaCompletionResponse genderateCompletion(
+            String model, List<Map<String, String>> messages, Map<String, Object> options);
+
+    Flux<ServerSentEvent<Object>> streamCompletion(
+            String model, 
+            List<Map<String, 
+            String>> messages, 
+            Map<String, Object> options, 
+            boolean streaming
+    );
+}
