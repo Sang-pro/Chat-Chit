@@ -12,5 +12,5 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class MessageRequest {
     @NotBlank(message = "Message is required")
-    private String message;
+    private String content;
 }

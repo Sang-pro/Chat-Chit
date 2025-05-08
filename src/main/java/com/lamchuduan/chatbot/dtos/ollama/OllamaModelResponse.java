@@ -19,7 +19,7 @@ public class OllamaModelResponse {
     private String model;
     private Long size;
     private String digest;
-
+    
     @JsonProperty("modified_at")
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ")
     private String modifiedAt;

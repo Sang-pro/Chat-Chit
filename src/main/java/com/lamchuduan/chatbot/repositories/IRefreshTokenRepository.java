@@ -17,7 +17,7 @@ import com.lamchuduan.chatbot.entities.User;
 @Repository
 public interface IRefreshTokenRepository extends JpaRepository<RefreshToken, UUID> {
     Optional<RefreshToken> findByToken(String token);
-    Optional<RefreshToken> findByUser(User user);
+    List<RefreshToken> findByUser(User user);
     List<RefreshToken> findByUserAndIsRevokedFalseAndIsUsedFalse(User user);
 
     @Modifying

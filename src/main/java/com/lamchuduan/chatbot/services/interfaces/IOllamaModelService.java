@@ -7,7 +7,7 @@ import com.lamchuduan.chatbot.dtos.ollama.OllamaModelResponse;
 
 public interface IOllamaModelService {
 
-    List<OllamaModelResponse> listModels();
+    List<OllamaModelResponse> listLocalModels();
     List<OllamaModelResponse> listRunningModels();
 
     OllamaModelDetails getModelDetails(String model);

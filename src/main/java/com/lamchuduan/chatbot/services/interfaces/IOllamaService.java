@@ -7,18 +7,16 @@ import com.lamchuduan.chatbot.dtos.ollama.OllamaCompletionResponse;
 import reactor.core.publisher.Flux;
 
 public interface IOllamaService {
-    default OllamaCompletionResponse genderateCompletion(String model, List<Map<String, String>> messages) {
-        return genderateCompletion(model, messages, null);
+    default OllamaCompletionResponse generateCompletion(String model, List<Map<String, String>> messages) {
+        return generateCompletion(model, messages, null);
     }
-
-    OllamaCompletionResponse genderateCompletion(
-            String model, List<Map<String, String>> messages, Map<String, Object> options);
-
+    
+    OllamaCompletionResponse generateCompletion(String model, List<Map<String, String>> messages, Map<String, Object> options);
+    
     Flux<ServerSentEvent<Object>> streamCompletion(
             String model, 
-            List<Map<String, 
-            String>> messages, 
-            Map<String, Object> options, 
-            boolean streaming
+            List<Map<String, String>> messages, 
+            boolean streaming,
+            Map<String, Object> options
     );
 }

@@ -53,7 +53,8 @@ public class DataInitializer {
         if (!userRepository.existsByUsername("admin")) {
             try {
                 UUID adminRoleId = roleRepository.findByName("ROLE_ADMIN")
-                    .map(Role::getId).orElseThrow(() -> new RuntimeException("Admin role not found!"));
+                                .map(Role::getId)
+                                .orElseThrow(() -> new RuntimeException("Admin role not found!"));
                 
                 Role adminRole = Role.builder().id(adminRoleId)
                                                 .name("ROLE_ADMIN")

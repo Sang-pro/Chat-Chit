@@ -10,6 +10,6 @@ import lombok.Data;
 @ConfigurationProperties(prefix = "app.jwt")
 public class JwtConfig {
     private String secret;
-    private Long expirationTime;
-    private Long refreshExpirationTime;
+    private long expirationMs;
+    private long refreshExpirationMs;
 }
