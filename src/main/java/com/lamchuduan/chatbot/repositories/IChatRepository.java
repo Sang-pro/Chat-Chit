@@ -16,7 +16,7 @@ import com.lamchuduan.chatbot.entities.User;
 
 @Repository
 public interface IChatRepository extends JpaRepository<Chat, UUID> {
-    List<Chat> findByUserOrderByUpdatedAtDesc(UUID userId);
+    List<Chat> findByUserOrderByUpdatedAtDesc(User user);
 
     Page<Chat> findByUser(User user, Pageable pageable);
 

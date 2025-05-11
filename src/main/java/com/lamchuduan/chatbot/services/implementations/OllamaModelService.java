@@ -30,11 +30,11 @@ public class OllamaModelService implements IOllamaModelService {
     public List<OllamaModelResponse> listLocalModels() {
         try {
             OllamaApiResponses response = ollamaWebClient.get()
-            .uri("/tags")
-            .accept(MediaType.APPLICATION_JSON)
-            .retrieve()
-            .bodyToMono(OllamaApiResponses.class)
-            .block(Duration.ofSeconds(DEFAULT_TIMEOUT_SECONDS));
+                                .uri("/tags")
+                                .accept(MediaType.APPLICATION_JSON)
+                                .retrieve()
+                                .bodyToMono(OllamaApiResponses.class)
+                                .block(Duration.ofSeconds(DEFAULT_TIMEOUT_SECONDS));
             
             if (response != null && response.getModels() != null) {
                 return response.getModels();
