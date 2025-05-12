@@ -98,9 +98,7 @@ public class UserProfileController {
                     )
             }
     )
-    public ResponseEntity<?> updateProfile(
-            Authentication authentication,
-            @Valid @RequestBody UpdateProfileRequest request) {
+    public ResponseEntity<?> updateProfile(Authentication authentication, @Valid @RequestBody UpdateProfileRequest request) {
         try {
             String username = authentication.getName();
             log.info("Updating profile for user: {}", username);
@@ -139,9 +137,8 @@ public class UserProfileController {
                     )
             }
     )
-    public ResponseEntity<?> changePassword(
-            Authentication authentication,
-            @Valid @RequestBody ChangePasswordRequest request) {
+    public ResponseEntity<?> changePassword(Authentication authentication, 
+                                            @Valid @RequestBody ChangePasswordRequest request) {
         try {
             String username = authentication.getName();
             log.info("Changing password for user: {}", username);
@@ -176,9 +173,7 @@ public class UserProfileController {
                     )
             }
     )
-    public ResponseEntity<?> updateAvatar(
-            Authentication authentication,
-            @RequestBody String avatarUrl) {
+    public ResponseEntity<?> updateAvatar(Authentication authentication, @RequestBody String avatarUrl) {
         try {
             String username = authentication.getName();
             log.info("Updating avatar for user: {}", username);

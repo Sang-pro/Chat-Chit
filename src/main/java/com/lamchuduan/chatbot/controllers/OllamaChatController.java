@@ -31,7 +31,7 @@ import reactor.core.publisher.Flux;
 @RestController
 @RequestMapping("/api/ollama/chat")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*", allowCredentials = "*")
+@CrossOrigin(origins = "*", allowCredentials = "false")
 @Tag(name = "Ollama Chat", description = "Direct API for Ollama Chat completions")
 public class OllamaChatController {
 
@@ -57,7 +57,6 @@ public class OllamaChatController {
                     )
             }
     )
-    
     public ResponseEntity<OllamaCompletionResponse> generateCompletion(@RequestBody ChatRequest request) {
         try {
             OllamaCompletionResponse response = ollamaService.generateCompletion(
@@ -98,7 +97,6 @@ public class OllamaChatController {
                     )
             }
     )
-
     public Flux<ServerSentEvent<Object>> streamCompletion(@RequestBody ChatRequest request) {
         try {
             boolean streaming = Optional.ofNullable(request.getStreaming()).orElse(true);

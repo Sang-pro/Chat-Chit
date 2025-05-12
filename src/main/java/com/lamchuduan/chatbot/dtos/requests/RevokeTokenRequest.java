@@ -13,4 +13,5 @@ import lombok.NoArgsConstructor;
 public class RevokeTokenRequest {
     @NotBlank(message = "Token is required")
     private String token;
+    private String reason;
 }

@@ -51,14 +51,14 @@ public class User {
     @Column(name = "phone_number", length = 15, unique = true)
     private String phoneNumber;
 
-    // @Builder.Default
+    @Builder.Default
     @Column(name = "is_active", nullable = false)
     private boolean isActive = true;
 
     @Column(name = "locked_until")
     private Instant lockedUntil;
 
-    // @Builder.Default
+    @Builder.Default
     @JsonIgnore
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(name = "user_roles",
