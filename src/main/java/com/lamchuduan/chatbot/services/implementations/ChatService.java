@@ -111,28 +111,23 @@ public class ChatService implements IChatService {
                 
         Chat chat = chatRepository.findByIdAndUser(chatId, user)
                 .orElseThrow(() -> new RuntimeException("Chat not found or you don't have access"));
-        
-        // Debug log to check incoming message content
+
         log.debug("Received message content: {}", request.getContent());
-        
-        // Validate message content
+
         if (request.getContent() == null || request.getContent().trim().isEmpty()) {
             throw new IllegalArgumentException("Message content cannot be empty");
         }
         
-        // Improved logic for determining message role
         MessageRole messageRole;
         
-        // Check if the content includes thinking tags (which would indicate it's from the AI assistant)
+        
         if (request.getContent().contains("<think>") || request.getContent().contains("</think>")) {
             messageRole = MessageRole.ASSISTANT;
             log.debug("Detected as assistant message (contains thinking tags)");
         } else {
-            // Look at the most recent message in the chat
+
             List<Message> recentMessages = messageRepository.findByChatOrderByCreatedAtDesc(chat, Pageable.ofSize(1));
-            
-            // If the last message was from a user, this is likely the assistant's response
-            // If the last message was from the assistant, this is likely a user's message
+
             if (!recentMessages.isEmpty() && recentMessages.get(0).getRole() == MessageRole.USER) {
                 messageRole = MessageRole.ASSISTANT;
                 log.debug("Detected as assistant message (follows user message)");

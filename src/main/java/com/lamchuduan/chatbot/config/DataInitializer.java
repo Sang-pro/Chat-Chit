@@ -38,7 +38,7 @@ public class DataInitializer {
             roleRepository.save(Role.builder()
                                 .name("ROLE_ADMIN")
                                 .description("Administrator role").build());
-            log.info("Quyền Administrator đã được khởi tạo.");
+            log.info("Quyền Admin đã được khởi tạo.");
         }
 
         if (!roleRepository.existsByName("ROLE_USER")) {

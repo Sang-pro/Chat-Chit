@@ -30,7 +30,7 @@ public class AdminUserService implements IAdminUserService{
 
     @Override
     @Transactional(readOnly = true)
-    public Page<UserAdminResponse> findAllUser(String search, Boolean isActive, Pageable pageable) {
+    public Page<UserAdminResponse> findAllUsers(String search, Boolean isActive, Pageable pageable) {
         log.info("Searching for all users with search: {}, isActive: {}, page = {}", search, isActive, pageable);
         Page<User> users;
         if (search != null && !search.isBlank()) {

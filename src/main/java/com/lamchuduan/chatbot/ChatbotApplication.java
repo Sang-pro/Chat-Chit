@@ -24,8 +24,8 @@ public class ChatbotApplication {
 			log.info("Chatbot application started successfully.");
 			log.info("You can start chatting with your AI model.");
 			log.info("=================================================");
-			log.info("Basic API endpoints are available at: http://localhost:8081/api/chat");
-			log.info("For more information, visit the documentation at: http://localhost:8081/docs");
+			log.info("Basic API endpoints are available at: http://localhost:8081/api/chats");
+			log.info("For more information, visit the documentation at: http://localhost:8081/api-docs");
 		};
 	}
 }

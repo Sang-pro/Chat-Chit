@@ -161,11 +161,7 @@ public class GlobalExceptionHandler {
         bodyMap.put("message", "Lỗi trong quá trình gọi API");
         bodyMap.put("path", httpRequest != null ? httpRequest.getRequestURI() : "unknown");
         
-        if (ex.getMessage() != null) {
-            bodyMap.put("details", ex.getMessage());
-        } else {
-            bodyMap.put("details", "Lỗi trong quá trình gọi API");
-        }
+        bodyMap.put("details", ex.getMessage() != null ? ex.getMessage() : "Lỗi trong quá trình gọi API");
 
         return new ResponseEntity<>(bodyMap, ex.getStatusCode());
     }
