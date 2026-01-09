@@ -11,6 +11,7 @@ public interface IRefreshTokenService {
     RefreshToken createRefreshToken(User user);
     RefreshToken verifyExpiration(RefreshToken token);
     RefreshToken useToken(RefreshToken token, String replacedByToken);
+    RefreshToken rotateRefreshToken(RefreshToken oldToken);
     void revokeToken(RefreshToken token, String reason);
     void deleteByUser(User user);
     List<RefreshToken> findActiveTokensByUser(User user);

@@ -1,12 +1,18 @@
 package com.lamchuduan.chatbot.services.implementations;
 
+import java.io.IOException;
+import java.security.GeneralSecurityException;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
@@ -14,16 +20,25 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken.Payload;
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
+import com.google.api.client.http.javanet.NetHttpTransport;
+import com.google.api.client.json.gson.GsonFactory;
 import com.lamchuduan.chatbot.dtos.requests.LoginRequest;
 import com.lamchuduan.chatbot.dtos.requests.LogoutRequest;
 import com.lamchuduan.chatbot.dtos.requests.RefreshTokenRequest;
 import com.lamchuduan.chatbot.dtos.requests.RegisterRequest;
+import com.lamchuduan.chatbot.dtos.requests.UserOauthRequest;
 import com.lamchuduan.chatbot.dtos.responses.JwtResponse;
 import com.lamchuduan.chatbot.dtos.responses.MessageResponse;
+import com.lamchuduan.chatbot.entities.AuthProvider;
 import com.lamchuduan.chatbot.entities.RefreshToken;
 import com.lamchuduan.chatbot.entities.Role;
 import com.lamchuduan.chatbot.entities.User;
+import com.lamchuduan.chatbot.exceptions.AccountDeactivatedException;
 import com.lamchuduan.chatbot.exceptions.TokenRefreshException;
 import com.lamchuduan.chatbot.repositories.IRoleRepository;
 import com.lamchuduan.chatbot.repositories.IUserRepository;
@@ -32,12 +47,10 @@ import com.lamchuduan.chatbot.services.interfaces.IAuthService;
 import com.lamchuduan.chatbot.services.interfaces.IRefreshTokenService;
 import com.lamchuduan.chatbot.services.interfaces.ITokenService;
 
-import org.springframework.transaction.annotation.Transactional;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Service
-// @RequiredArgsConstructor
 public class AuthService implements IAuthService {
     private final IUserRepository userRepository;
     private final IRoleRepository roleRepository;
@@ -45,6 +58,7 @@ public class AuthService implements IAuthService {
     private final IRefreshTokenService refreshTokenService;
     private final PasswordEncoder passwordEncoder;
     private final ObjectProvider<AuthenticationManager> authenticationManagerProvider;
+    private final GoogleIdTokenVerifier verifier;
 
     public AuthService(
             IUserRepository userRepository, 
@@ -52,68 +66,154 @@ public class AuthService implements IAuthService {
             ITokenService tokenService,
             IRefreshTokenService refreshTokenService,
             PasswordEncoder passwordEncoder,
-            ObjectProvider<AuthenticationManager> authenticationManagerProvider) {
+            ObjectProvider<AuthenticationManager> authenticationManagerProvider,
+            @Value("${spring.security.oauth2.client.registration.google.client-id}") String googleClientId) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.tokenService = tokenService;
         this.refreshTokenService = refreshTokenService;
         this.passwordEncoder = passwordEncoder;
         this.authenticationManagerProvider = authenticationManagerProvider;
+        
+        // Initialize Google token verifier
+        this.verifier = new GoogleIdTokenVerifier.Builder(new NetHttpTransport(), new GsonFactory())
+                .setAudience(Collections.singletonList(googleClientId))
+                .build();
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public JwtResponse authenticateUser(LoginRequest loginRequest) {
-        try {
-            // Get authentication manager lazily to avoid circular dependency
-            AuthenticationManager authenticationManager = authenticationManagerProvider.getObject();
-            
-            // Authenticate
-            Authentication authentication = authenticationManager.authenticate(
-                    new UsernamePasswordAuthenticationToken(
-                            loginRequest.getUsername(),
-                            loginRequest.getPassword()));
+        AuthenticationManager authenticationManager = authenticationManagerProvider.getObject();
+        
+        Authentication authentication = authenticationManager.authenticate(
+                new UsernamePasswordAuthenticationToken(
+                        loginRequest.getUsername(),
+                        loginRequest.getPassword()));
 
-            SecurityContextHolder.getContext().setAuthentication(authentication);
-            UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
+        SecurityContextHolder.getContext().setAuthentication(authentication);
+        UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
 
-            // Generate JWT access token
-            String accessToken = tokenService.generateAccessToken(userDetails);
-            
-            // Get user for refresh token
-            User user = userRepository.findByUsername(userDetails.getUsername())
-                    .orElseThrow(() -> new UsernameNotFoundException("User not found with username: " + userDetails.getUsername()));
-            
-            // Create refresh token with retry mechanism
-            RefreshToken refreshToken;
-            try {
-                refreshToken = refreshTokenService.createRefreshToken(user);
-            } catch (DataIntegrityViolationException ex) {
-                // If we hit a constraint violation, try to find existing token
-                log.warn("Constraint violation creating refresh token, checking for existing tokens");
-                List<RefreshToken> activeTokens = refreshTokenService.findActiveTokensByUser(user);
-                if (activeTokens.isEmpty()) {
-                    throw new RuntimeException("Could not create or find valid refresh token");
-                }
-                refreshToken = activeTokens.get(0);
-            }
-
-            List<String> roles = userDetails.getAuthorities().stream()
-                    .map(GrantedAuthority::getAuthority)
-                    .toList();
-
-            return JwtResponse.builder()
-                    .accessToken(accessToken)
-                    .refreshToken(refreshToken.getToken())
-                    .id(userDetails.getId())
-                    .username(userDetails.getUsername())
-                    .email(userDetails.getEmail())
-                    .roles(roles)
-                    .build();
-        } catch (Exception e) {
-            log.error("Authentication error: ", e);
-            throw e;
+        User user = userRepository.findByUsername(userDetails.getUsername())
+                .orElseThrow(() -> new UsernameNotFoundException("User not found with username: " + userDetails.getUsername()));
+        
+        if (!user.isActive()) {
+            throw new AccountDeactivatedException("User account is deactivated");
         }
+
+        return generateJwtResponse(userDetails);
+    }
+
+    @Override
+    @Transactional
+    public JwtResponse authenticateUser(UserOauthRequest loginRequest) {
+        log.info("Starting Google OAuth authentication with Client ID: {}", loginRequest.getClientId());
+        
+        GoogleIdToken idToken = verifyGoogleToken(loginRequest.getIdToken());
+        if (idToken == null) {
+            log.warn("Invalid Google ID Token received");
+            throw new BadCredentialsException("Invalid Google ID Token");
+        }
+
+        Payload payload = idToken.getPayload();
+        String email = payload.getEmail();
+        log.info("Google OAuth payload email: {}", email);
+
+        User user = userRepository.findByEmail(email)
+                .orElseGet(() -> {
+                    log.info("User not found, creating new user from Google OAuth");
+                    return createNewGoogleUser(payload);
+                });
+        
+        log.info("User authenticated: {} (ID: {})", user.getUsername(), user.getId());
+
+        if (!user.isActive()) {
+            log.warn("User account is deactivated: {}", user.getUsername());
+            throw new AccountDeactivatedException("User account is deactivated");
+        }
+        
+        // Manually create authentication for the SecurityContext as we are not using the AuthenticationManager here
+        UserDetailsImpl userDetails = UserDetailsImpl.build(user);
+        Authentication authentication = new UsernamePasswordAuthenticationToken(
+                userDetails, null, userDetails.getAuthorities());
+        SecurityContextHolder.getContext().setAuthentication(authentication);
+        
+        log.info("Generating JWT response for user: {}", user.getUsername());
+        // Generate and return JWT response
+        return generateJwtResponse(userDetails);
+    }
+
+    private GoogleIdToken verifyGoogleToken(String idTokenString) {
+        try {
+            return verifier.verify(idTokenString);
+        } catch (GeneralSecurityException | IOException e) {
+            log.error("Error verifying Google ID token", e);
+            return null;
+        }
+    }
+
+    private User createNewGoogleUser(Payload payload) {
+        String email = payload.getEmail();
+        String firstName = (String) payload.get("given_name");
+        String lastName = (String) payload.get("family_name");
+        String avatarUrl = (String) payload.get("picture");
+        
+        // Create a unique username as it's a required field. Use email by default.
+        String username = email; 
+        if (userRepository.existsByUsername(username)) {
+            // If email-based username exists, append a short UUID to make it unique
+            username = username + "_" + UUID.randomUUID().toString().substring(0, 4);
+        }
+
+        Role userRole = roleRepository.findByName("ROLE_USER")
+                .orElseThrow(() -> new RuntimeException("Error: Default role 'ROLE_USER' not found."));
+
+        User newUser = User.builder()
+                .email(email)
+                .username(username)
+                .firstName(firstName)
+                .lastName(lastName)
+                .avatarUrl(avatarUrl)
+                .password(passwordEncoder.encode(UUID.randomUUID().toString())) // Set a random, unusable password
+                .provider(AuthProvider.GOOGLE)
+                .isActive(true)
+                .roles(Collections.singleton(userRole))
+                .build();
+        
+        log.info("Creating new user from Google OAuth: {}", email);
+        return userRepository.save(newUser);
+    }
+    
+    private JwtResponse generateJwtResponse(UserDetailsImpl userDetails) {
+        String accessToken = tokenService.generateAccessToken(userDetails);
+        
+        User user = userRepository.findById(userDetails.getId())
+            .orElseThrow(() -> new UsernameNotFoundException("User not found with ID: " + userDetails.getId()));
+        
+        RefreshToken refreshToken;
+        try {
+            refreshToken = refreshTokenService.createRefreshToken(user);
+        } catch (DataIntegrityViolationException ex) {
+            log.warn("Constraint violation creating refresh token for user '{}', checking for existing tokens.", user.getUsername());
+            List<RefreshToken> activeTokens = refreshTokenService.findActiveTokensByUser(user);
+            if (activeTokens.isEmpty()) {
+                throw new RuntimeException("Could not create or find a valid refresh token for the user.");
+            }
+            refreshToken = activeTokens.get(0);
+        }
+
+        List<String> roles = userDetails.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .toList();
+
+        return JwtResponse.builder()
+                .accessToken(accessToken)
+                .refreshToken(refreshToken.getToken())
+                .id(userDetails.getId())
+                .username(userDetails.getUsername())
+                .email(userDetails.getEmail())
+                .roles(roles)
+                .build();
     }
 
     @Override
@@ -126,25 +226,8 @@ public class AuthService implements IAuthService {
                     User user = refreshToken.getUser();
                     UserDetailsImpl userDetails = UserDetailsImpl.build(user);
                     
-                    // Generate new access token
                     String accessToken = tokenService.generateAccessToken(userDetails);
-                    
-                    // Generate new refresh token with retry mechanism
-                    RefreshToken newRefreshToken;
-                    try {
-                        newRefreshToken = refreshTokenService.createRefreshToken(user);
-                    } catch (DataIntegrityViolationException ex) {
-                        // If we hit a constraint violation, try to find an active token
-                        List<RefreshToken> activeTokens = refreshTokenService.findActiveTokensByUser(user);
-                        if (activeTokens.isEmpty()) {
-                            throw new TokenRefreshException(requestRefreshToken, 
-                                "Could not create new refresh token due to constraint violation");
-                        }
-                        newRefreshToken = activeTokens.get(0);
-                    }
-                    
-                    // Mark old token as used and specify which token replaced it
-                    refreshTokenService.useToken(refreshToken, newRefreshToken.getToken());
+                    RefreshToken newRefreshToken = refreshTokenService.rotateRefreshToken(refreshToken);
 
                     List<String> roles = userDetails.getAuthorities().stream()
                             .map(GrantedAuthority::getAuthority)
@@ -184,6 +267,7 @@ public class AuthService implements IAuthService {
                 .email(registerRequest.getEmail())
                 .password(passwordEncoder.encode(registerRequest.getPassword()))
                 .phoneNumber(registerRequest.getPhoneNumber())
+                .provider(AuthProvider.LOCAL)
                 .build();
 
         Set<String> strRoles = registerRequest.getRoles();
@@ -202,13 +286,6 @@ public class AuthService implements IAuthService {
                                 .orElseThrow(() -> new RuntimeException("Error: Role is not found."));
                         roles.add(adminRole);
                         break;
-
-                    case "mod":
-                        Role modRole = roleRepository.findByName("ROLE_MODERATOR")
-                                .orElseThrow(() -> new RuntimeException("Error: Role is not found."));
-                        roles.add(modRole);
-                        break;
-                
                     default:
                         Role userRole = roleRepository.findByName("ROLE_USER")
                                 .orElseThrow(() -> new RuntimeException("Error: Role is not found."));
@@ -250,7 +327,7 @@ public class AuthService implements IAuthService {
                         .build();
             }
 
-            String finalReason = (reason != null && reason.isBlank()) ? reason : "Manually revoked by user";
+            String finalReason = (reason != null && !reason.isBlank()) ? reason : "Manually revoked by user";
             refreshTokenService.revokeToken(refreshToken, finalReason);
 
             log.info("Token revoked for user: {}, reason: {}", refreshToken.getUser().getUsername(), finalReason);
@@ -274,5 +351,4 @@ public class AuthService implements IAuthService {
     public boolean existsByUsername(String username) {
         return userRepository.existsByUsername(username);
     }
-
 }

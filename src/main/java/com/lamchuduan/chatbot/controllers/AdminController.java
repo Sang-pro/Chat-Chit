@@ -243,7 +243,7 @@ public class AdminController {
                     .status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(new MessageResponse (e.getMessage(), false));
 
-        }
+        }     
     }
 
     private String getClientIp(HttpServletRequest httpRequest) {

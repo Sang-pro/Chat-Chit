@@ -5,7 +5,7 @@
 	<parent>
 		<groupId>org.springframework.boot</groupId>
 		<artifactId>spring-boot-starter-parent</artifactId>
-		<version>3.4.5</version>
+		<version>3.5.9</version>
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
 	<groupId>com.lamchuduan</groupId>
@@ -66,7 +66,6 @@
 		<dependency>
     		<groupId>com.mysql</groupId>
     		<artifactId>mysql-connector-j</artifactId>
-    		<version>8.0.33</version>
 		</dependency>
 		<dependency>
 			<groupId>org.projectlombok</groupId>
@@ -84,17 +83,14 @@
 			<scope>test</scope>
 		</dependency>
 
-		<!-- Comment out SpringDoc dependencies until compatible with Spring Boot 3.4.3 -->
-		<dependency>
-			<groupId>org.springdoc</groupId>
-			<artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
-			<version>2.5.0</version>
-		</dependency>
+		<!-- SpringDoc dependencies removed due to incompatibility with current Spring Boot version.
+		     Re-add a compatible springdoc version when upgrading or aligning Spring Boot. -->
 
+		<!-- Provide annotations so OpenApiConfig compiles even without the SpringDoc starter -->
 		<dependency>
-			<groupId>org.springdoc</groupId>
-			<artifactId>springdoc-openapi-starter-common</artifactId>
-			<version>2.5.0</version>
+			<groupId>io.swagger.core.v3</groupId>
+			<artifactId>swagger-annotations</artifactId>
+			<version>2.2.17</version>
 		</dependency>
 
 		<!-- JWT Dependencies -->
@@ -141,7 +137,19 @@
 			<classifier>osx-aarch_64</classifier>
 			<scope>runtime</scope>
 		</dependency>
-
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-oauth2-client</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>com.google.api-client</groupId>
+			<artifactId>google-api-client</artifactId>
+			<version>2.2.0</version>
+		</dependency>
 	</dependencies>
 
 	<build>
@@ -189,5 +197,5 @@
 				</executions>
 			</plugin>
 		</plugins>
-	</build>
+	</build>		
 </project>

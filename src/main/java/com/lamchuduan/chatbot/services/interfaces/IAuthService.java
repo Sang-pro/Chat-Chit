@@ -4,11 +4,13 @@ import com.lamchuduan.chatbot.dtos.requests.LoginRequest;
 import com.lamchuduan.chatbot.dtos.requests.LogoutRequest;
 import com.lamchuduan.chatbot.dtos.requests.RefreshTokenRequest;
 import com.lamchuduan.chatbot.dtos.requests.RegisterRequest;
+import com.lamchuduan.chatbot.dtos.requests.UserOauthRequest;
 import com.lamchuduan.chatbot.dtos.responses.JwtResponse;
 import com.lamchuduan.chatbot.dtos.responses.MessageResponse;
 
 public interface IAuthService {
     JwtResponse authenticateUser(LoginRequest loginRequest);
+    JwtResponse authenticateUser(UserOauthRequest loginRequest);
     JwtResponse refreshToken(RefreshTokenRequest refreshTokenRequest);
 
     MessageResponse registerUser(RegisterRequest registerRequest);

@@ -159,4 +159,30 @@ public class RefreshTokenService implements IRefreshTokenService {
             log.info("Purged {} expired refresh tokens", deleted);
         }
     }
+
+    @Override
+    @Transactional
+    public RefreshToken rotateRefreshToken(RefreshToken oldToken) {
+        User user = oldToken.getUser();
+        String newTokenValue = UUID.randomUUID().toString();
+        
+        // Create new refresh token
+        RefreshToken newRefreshToken = RefreshToken.builder()
+                .user(user)
+                .token(newTokenValue)
+                .expiryDate(Instant.now().plusMillis(jwtConfig.getRefreshExpirationMs()))
+                .isUsed(false)
+                .isRevoked(false)
+                .build();
+        
+        RefreshToken savedNewToken = refreshTokenRepository.save(newRefreshToken);
+        
+        // Mark old token as used and replaced
+        oldToken.setUsed(true);
+        oldToken.setReplacedByToken(newTokenValue);
+        refreshTokenRepository.save(oldToken);
+        
+        log.debug("Refresh token rotated for user: {}", user.getUsername());
+        return savedNewToken;
+    }
 }

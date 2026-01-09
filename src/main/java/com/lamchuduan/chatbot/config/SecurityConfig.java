@@ -14,7 +14,6 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import org.springframework.security.web.context.SecurityContextHolderFilter;
 import org.springframework.web.cors.CorsConfiguration;
 
 @Configuration
@@ -57,8 +56,10 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // Public endpoints
                         .requestMatchers("/api/auth/**").permitAll()
+                        .requestMatchers("/api/oauth/**").permitAll()
                         .requestMatchers("/api/ollama/models/**").permitAll()
                         .requestMatchers("/api/ollama/chat/**").permitAll() // Make chat API public too for testing
+                        .requestMatchers("/", "/login**", "/error**").permitAll()
                         // Swagger UI and API docs endpoints
                         .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**", "/api-docs/**").permitAll()
                         // Admin endpoints
@@ -67,7 +68,6 @@ public class SecurityConfig {
                         .anyRequest().authenticated())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
-                .addFilterBefore(corsConfig.corsFilter(), SecurityContextHolderFilter.class)  // Add CORS filter before security filters
                 .build();
-    }
+    }   
 }
