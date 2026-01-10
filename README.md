@@ -4,7 +4,7 @@
 
 ## Tính năng chính
 
-- **Xác thực người dùng:** Đăng ký, đăng nhập bằng email/mật khẩu và đăng nhập qua Google (OAuth2).
+- **Xác thực người dùng:** Đăng ký, đăng nhập bằng email/mật khẩu và đăng nhập qua Google, Facebook (OAuth2).
 - **Quản lý phiên:** Sử dụng JSON Web Tokens (JWT) với Refresh Token.
 - **Chat:** Giao diện chat real-time (sẽ được cập nhật).
 - **Tích hợp AI:** Trò chuyện với các mô hình AI từ Ollama.
@@ -91,7 +91,7 @@ cd Chat-Chit
     ```bash
     ./mvnw spring-boot:run
     ```
-    Backend sẽ khởi động và chạy tại `http://localhost:8080`.
+    Backend sẽ khởi động và chạy tại `http://localhost:8081`.
 
 ### 3. Cài đặt Frontend
 

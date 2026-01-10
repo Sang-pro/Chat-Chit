@@ -21,12 +21,15 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.reactive.function.client.WebClient;
 
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken.Payload;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
 import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.client.json.gson.GsonFactory;
+import com.lamchuduan.chatbot.dtos.facebook.FacebookDebugTokenResponse;
+import com.lamchuduan.chatbot.dtos.facebook.FacebookUserResponse;
 import com.lamchuduan.chatbot.dtos.requests.LoginRequest;
 import com.lamchuduan.chatbot.dtos.requests.LogoutRequest;
 import com.lamchuduan.chatbot.dtos.requests.RefreshTokenRequest;
@@ -34,10 +37,10 @@ import com.lamchuduan.chatbot.dtos.requests.RegisterRequest;
 import com.lamchuduan.chatbot.dtos.requests.UserOauthRequest;
 import com.lamchuduan.chatbot.dtos.responses.JwtResponse;
 import com.lamchuduan.chatbot.dtos.responses.MessageResponse;
-import com.lamchuduan.chatbot.entities.AuthProvider;
 import com.lamchuduan.chatbot.entities.RefreshToken;
 import com.lamchuduan.chatbot.entities.Role;
 import com.lamchuduan.chatbot.entities.User;
+import com.lamchuduan.chatbot.events.AuthProvider;
 import com.lamchuduan.chatbot.exceptions.AccountDeactivatedException;
 import com.lamchuduan.chatbot.exceptions.TokenRefreshException;
 import com.lamchuduan.chatbot.repositories.IRoleRepository;
@@ -48,6 +51,7 @@ import com.lamchuduan.chatbot.services.interfaces.IRefreshTokenService;
 import com.lamchuduan.chatbot.services.interfaces.ITokenService;
 
 import lombok.extern.slf4j.Slf4j;
+import reactor.core.publisher.Mono;
 
 @Slf4j
 @Service
@@ -58,25 +62,34 @@ public class AuthService implements IAuthService {
     private final IRefreshTokenService refreshTokenService;
     private final PasswordEncoder passwordEncoder;
     private final ObjectProvider<AuthenticationManager> authenticationManagerProvider;
-    private final GoogleIdTokenVerifier verifier;
+    private final GoogleIdTokenVerifier googleVerifier;
+    private final WebClient webClient;
+    private final String facebookClientId;
+    private final String facebookClientSecret;
 
     public AuthService(
-            IUserRepository userRepository, 
-            IRoleRepository roleRepository, 
+            IUserRepository userRepository,
+            IRoleRepository roleRepository,
             ITokenService tokenService,
             IRefreshTokenService refreshTokenService,
             PasswordEncoder passwordEncoder,
             ObjectProvider<AuthenticationManager> authenticationManagerProvider,
-            @Value("${spring.security.oauth2.client.registration.google.client-id}") String googleClientId) {
+            WebClient.Builder webClientBuilder,
+            @Value("${spring.security.oauth2.client.registration.google.client-id}") String googleClientId,
+            @Value("${spring.security.oauth2.client.registration.facebook.client-id}") String facebookClientId,
+            @Value("${spring.security.oauth2.client.registration.facebook.client-secret}") String facebookClientSecret) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.tokenService = tokenService;
         this.refreshTokenService = refreshTokenService;
         this.passwordEncoder = passwordEncoder;
         this.authenticationManagerProvider = authenticationManagerProvider;
-        
+        this.webClient = webClientBuilder.baseUrl("https://graph.facebook.com").build();
+        this.facebookClientId = facebookClientId;
+        this.facebookClientSecret = facebookClientSecret;
+
         // Initialize Google token verifier
-        this.verifier = new GoogleIdTokenVerifier.Builder(new NetHttpTransport(), new GsonFactory())
+        this.googleVerifier = new GoogleIdTokenVerifier.Builder(new NetHttpTransport(), new GsonFactory())
                 .setAudience(Collections.singletonList(googleClientId))
                 .build();
     }
@@ -107,59 +120,104 @@ public class AuthService implements IAuthService {
     @Override
     @Transactional
     public JwtResponse authenticateUser(UserOauthRequest loginRequest) {
-        log.info("Starting Google OAuth authentication with Client ID: {}", loginRequest.getClientId());
-        
-        GoogleIdToken idToken = verifyGoogleToken(loginRequest.getIdToken());
-        if (idToken == null) {
-            log.warn("Invalid Google ID Token received");
-            throw new BadCredentialsException("Invalid Google ID Token");
-        }
+        User user = switch (loginRequest.getProvider()) {
+            case GOOGLE -> {
+                log.info("Starting Google OAuth authentication for token: {}", loginRequest.getToken());
+                GoogleIdToken idToken = verifyGoogleToken(loginRequest.getToken());
+                if (idToken == null) {
+                    log.warn("Invalid Google ID Token received");
+                    throw new BadCredentialsException("Invalid Google ID Token");
+                }
+                Payload payload = idToken.getPayload();
+                String email = payload.getEmail();
+                log.info("Google OAuth payload email: {}", email);
+                yield userRepository.findByEmail(email)
+                        .orElseGet(() -> createNewGoogleUser(payload));
+            }
+            case FACEBOOK -> {
+                log.info("Starting Facebook OAuth authentication for token: {}", loginRequest.getToken());
+                FacebookUserResponse facebookUser = verifyFacebookToken(loginRequest.getToken());
+                if (facebookUser == null) {
+                    log.warn("Invalid Facebook Access Token received");
+                    throw new BadCredentialsException("Invalid Facebook Access Token");
+                }
+                String email = facebookUser.getEmail();
+                log.info("Facebook OAuth payload email: {}", email);
+                yield userRepository.findByEmail(email)
+                        .orElseGet(() -> createNewFacebookUser(facebookUser));
+            }
+            default -> throw new BadCredentialsException("Unsupported OAuth provider");
+        };
 
-        Payload payload = idToken.getPayload();
-        String email = payload.getEmail();
-        log.info("Google OAuth payload email: {}", email);
-
-        User user = userRepository.findByEmail(email)
-                .orElseGet(() -> {
-                    log.info("User not found, creating new user from Google OAuth");
-                    return createNewGoogleUser(payload);
-                });
-        
         log.info("User authenticated: {} (ID: {})", user.getUsername(), user.getId());
 
         if (!user.isActive()) {
             log.warn("User account is deactivated: {}", user.getUsername());
             throw new AccountDeactivatedException("User account is deactivated");
         }
-        
-        // Manually create authentication for the SecurityContext as we are not using the AuthenticationManager here
+
+        // Manually create authentication for the SecurityContext
         UserDetailsImpl userDetails = UserDetailsImpl.build(user);
         Authentication authentication = new UsernamePasswordAuthenticationToken(
                 userDetails, null, userDetails.getAuthorities());
         SecurityContextHolder.getContext().setAuthentication(authentication);
-        
+
         log.info("Generating JWT response for user: {}", user.getUsername());
-        // Generate and return JWT response
         return generateJwtResponse(userDetails);
     }
 
-    private GoogleIdToken verifyGoogleToken(String idTokenString) {
+    private GoogleIdToken verifyGoogleToken(String token) {
         try {
-            return verifier.verify(idTokenString);
+            return googleVerifier.verify(token);
         } catch (GeneralSecurityException | IOException e) {
             log.error("Error verifying Google ID token", e);
             return null;
         }
     }
 
+    private FacebookUserResponse verifyFacebookToken(String token) {
+        // Step 1: Verify the token is valid and belongs to our app
+        String appAccessToken = facebookClientId + "|" + facebookClientSecret;
+        FacebookDebugTokenResponse debugResponse = webClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/debug_token")
+                        .queryParam("input_token", token)
+                        .queryParam("access_token", appAccessToken)
+                        .build())
+                .retrieve()
+                .bodyToMono(FacebookDebugTokenResponse.class)
+                .doOnError(e -> log.error("Error debugging Facebook token", e))
+                .onErrorResume(e -> Mono.empty()) // Handle errors by returning an empty Mono
+                .block();
+
+        if (debugResponse == null || !debugResponse.getData().isValid() || !debugResponse.getData().getAppId().equals(facebookClientId)) {
+            log.warn("Invalid Facebook token or token does not belong to our app. App ID from token: {}", 
+                     debugResponse != null && debugResponse.getData() != null ? debugResponse.getData().getAppId() : "N/A");
+            return null;
+        }
+
+        // Step 2: Fetch the user's profile
+        return webClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/me")
+                        .queryParam("fields", "id,email,first_name,last_name,picture.type(large)")
+                        .queryParam("access_token", token)
+                        .build())
+                .retrieve()
+                .bodyToMono(FacebookUserResponse.class)
+                .doOnError(e -> log.error("Error fetching user profile from Facebook", e))
+                .onErrorResume(e -> Mono.empty()) // Handle errors by returning an empty Mono
+                .block();
+    }
+    
     private User createNewGoogleUser(Payload payload) {
         String email = payload.getEmail();
         String firstName = (String) payload.get("given_name");
         String lastName = (String) payload.get("family_name");
         String avatarUrl = (String) payload.get("picture");
-        
+
         // Create a unique username as it's a required field. Use email by default.
-        String username = email; 
+        String username = email;
         if (userRepository.existsByUsername(username)) {
             // If email-based username exists, append a short UUID to make it unique
             username = username + "_" + UUID.randomUUID().toString().substring(0, 4);
@@ -179,8 +237,45 @@ public class AuthService implements IAuthService {
                 .isActive(true)
                 .roles(Collections.singleton(userRole))
                 .build();
-        
+
         log.info("Creating new user from Google OAuth: {}", email);
+        return userRepository.save(newUser);
+    }
+
+    private User createNewFacebookUser(FacebookUserResponse facebookUser) {
+        String email = facebookUser.getEmail();
+        if (email == null || email.isBlank()) {
+            // Handle case where Facebook user does not provide an email
+            // You might want to throw an exception or create a user without an email
+            // For now, we'll use the facebook ID to create a placeholder email
+            email = facebookUser.getId() + "@facebook.com";
+        }
+
+        // Create a unique username
+        String username = email;
+        if (userRepository.existsByUsername(username)) {
+            username = username + "_" + UUID.randomUUID().toString().substring(0, 4);
+        }
+
+        Role userRole = roleRepository.findByName("ROLE_USER")
+                .orElseThrow(() -> new RuntimeException("Error: Default role 'ROLE_USER' not found."));
+
+        String avatarUrl = (facebookUser.getPicture() != null && facebookUser.getPicture().getData() != null)
+                ? facebookUser.getPicture().getData().getUrl() : null;
+
+        User newUser = User.builder()
+                .email(email)
+                .username(username)
+                .firstName(facebookUser.getFirstName())
+                .lastName(facebookUser.getLastName())
+                .avatarUrl(avatarUrl)
+                .password(passwordEncoder.encode(UUID.randomUUID().toString())) // Random password
+                .provider(AuthProvider.FACEBOOK)
+                .isActive(true)
+                .roles(Collections.singleton(userRole))
+                .build();
+
+        log.info("Creating new user from Facebook OAuth: {}", email);
         return userRepository.save(newUser);
     }
     

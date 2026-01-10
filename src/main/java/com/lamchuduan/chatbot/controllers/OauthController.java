@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.lamchuduan.chatbot.dtos.requests.UserOauthRequest;
 import com.lamchuduan.chatbot.dtos.responses.JwtResponse;
+import com.lamchuduan.chatbot.events.AuthProvider;
 import com.lamchuduan.chatbot.events.AuthenticationEvent;
 import com.lamchuduan.chatbot.exceptions.AccountDeactivatedException;
 import com.lamchuduan.chatbot.services.interfaces.IAuthService;
@@ -33,6 +34,56 @@ public class OauthController {
     private final IAuthService authService;
     private final ApplicationEventPublisher eventPublisher;
 
+    @PostMapping("/facebook")
+    @Operation(
+        summary = "Authenticate user via Facebook OAuth",
+        description = "Authenticate user using Facebook OAuth token (idToken), returns JWT token",
+        responses = {
+                @ApiResponse(
+                    responseCode = "200",
+                    description = "Successfully authenticated",
+                    content = @Content(schema = @Schema(implementation = JwtResponse.class))
+                ),
+                @ApiResponse(
+                    responseCode = "401", 
+                    description = "Invalid username or password"
+                )
+        }
+    )
+    public ResponseEntity<JwtResponse> oauth2LoginFacebook(
+            @Valid @RequestBody UserOauthRequest loginRequest, HttpServletRequest httpRequest) {
+        try {
+            loginRequest.setProvider(AuthProvider.FACEBOOK);
+            JwtResponse jwtResponse = authService.authenticateUser(loginRequest);
+            eventPublisher.publishEvent(new AuthenticationEvent(
+                    this,
+                    loginRequest.getToken(),
+                    AuthenticationEvent.AuthEventType.LOGIN_SUCCESS,
+                    "Login successful",
+                    getClientIp(httpRequest)
+            ));
+            return ResponseEntity.ok(jwtResponse);
+        } catch (AccountDeactivatedException e) {
+            eventPublisher.publishEvent(new AuthenticationEvent(
+                    this,
+                    loginRequest.getToken(),
+                    AuthenticationEvent.AuthEventType.LOGIN_FAILED,
+                    "Account deactivated",
+                    getClientIp(httpRequest)
+            ));
+            throw e;
+        } catch (BadCredentialsException e) {
+            eventPublisher.publishEvent(new AuthenticationEvent(
+                    this,
+                    loginRequest.getToken(),
+                    AuthenticationEvent.AuthEventType.LOGIN_FAILED,
+                    "Invalid credentials",
+                    getClientIp(httpRequest)
+            ));
+            throw e;
+        }
+    }
+
     @PostMapping("/google")
     @Operation(
         summary = "Authenticate user via Google OAuth",
@@ -52,10 +103,11 @@ public class OauthController {
     public ResponseEntity<JwtResponse> oauth2LoginGoogle(
             @Valid @RequestBody UserOauthRequest loginRequest, HttpServletRequest httpRequest) {
         try {
+            loginRequest.setProvider(AuthProvider.GOOGLE);
             JwtResponse jwtResponse = authService.authenticateUser(loginRequest);
             eventPublisher.publishEvent(new AuthenticationEvent(
                     this, 
-                    loginRequest.getIdToken(), 
+                    loginRequest.getToken(), 
                     AuthenticationEvent.AuthEventType.LOGIN_SUCCESS,
                     "Login successful",
                     getClientIp(httpRequest)
@@ -64,7 +116,7 @@ public class OauthController {
         } catch (AccountDeactivatedException e) {
             eventPublisher.publishEvent(new AuthenticationEvent(
                     this, 
-                    loginRequest.getIdToken(), 
+                    loginRequest.getToken(), 
                     AuthenticationEvent.AuthEventType.LOGIN_FAILED,
                     "Account deactivated",
                     getClientIp(httpRequest)
@@ -73,7 +125,7 @@ public class OauthController {
         } catch (BadCredentialsException e) {
             eventPublisher.publishEvent(new AuthenticationEvent(
                     this, 
-                    loginRequest.getIdToken(), 
+                    loginRequest.getToken(), 
                     AuthenticationEvent.AuthEventType.LOGIN_FAILED,
                     "Invalid credentials",
                     getClientIp(httpRequest)

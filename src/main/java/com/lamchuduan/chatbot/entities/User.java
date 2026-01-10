@@ -7,6 +7,7 @@ import java.util.Set;
 import java.util.UUID;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.lamchuduan.chatbot.events.AuthProvider;
 
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
